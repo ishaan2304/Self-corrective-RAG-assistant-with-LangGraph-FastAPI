@@ -1,8 +1,18 @@
-# Technical Documentation Assistant
+# 📚 Technical Documentation Assistant
 
-A self-corrective RAG system built with **LangGraph** + **FastAPI**, answering
-questions over a small FastAPI-documentation corpus with retrieval, LLM-based
-document grading, query rewriting on failure, and cited answers.
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![LangGraph](https://img.shields.io/badge/LangGraph-self--corrective%20RAG-orange)
+![FastAPI](https://img.shields.io/badge/FastAPI-backend-teal)
+![Streamlit](https://img.shields.io/badge/Streamlit-UI-red)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
+
+A **self-corrective RAG** (Retrieval-Augmented Generation) system that answers
+questions over technical documentation. Built as a **LangGraph** `StateGraph`
+with retrieval, LLM-based document grading, automatic query rewriting on
+failure, and cited generation — served via **FastAPI**, with an optional
+**Streamlit** chat UI on top.
+
+> Built for the Express Analytics AI/ML Engineer Intern take-home assignment.
 
 ## Architecture
 
@@ -47,6 +57,28 @@ class RAGState(TypedDict, total=False):
     sources: List[str]
     gave_up: bool
 ```
+
+## Features
+
+- **Self-corrective retrieval** — an LLM grades every retrieved chunk as relevant/irrelevant; if none pass, the query is automatically rewritten and re-retrieved (bounded retry limit)
+- **Cited answers** — generation is grounded only in graded-relevant chunks, with inline `[source: filename]` citations
+- **REST API** — `/query`, `/ingest`, `/documents`, `/feedback` via FastAPI, with interactive Swagger docs at `/docs`
+- **Streamlit chat UI** — optional frontend with source citations, retry/query-type badges, document upload, and 👍/👎 feedback
+- **Local, free embeddings** — `sentence-transformers` runs on-device, no API key or cost for indexing
+- **Swappable LLM provider** — Groq (default, free tier) or OpenAI, changeable in one line
+
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Corpus](#corpus)
+- [Chunking & Embedding Strategy](#chunking--embedding-strategy)
+- [Setup](#setup)
+- [Streamlit UI](#streamlit-ui-optional-bonus)
+- [Example Requests](#example-requests)
+- [Testing](#testing)
+- [Design Decisions & Tradeoffs](#design-decisions--tradeoffs)
+- [What I'd Improve](#what-id-improve-with-more-time)
+- [Assumptions](#assumptions)
 
 ## Corpus
 
@@ -153,6 +185,31 @@ curl -X POST http://localhost:8000/feedback \
   -H "Content-Type: application/json" \
   -d '{"question": "...", "answer": "...", "rating": "up", "comment": "accurate"}'
 ```
+
+## Troubleshooting
+
+**`groq.NotFoundError: model ... does not exist`**
+Groq periodically deprecates models. Check `LLM_MODEL` in `.env` against the
+current list at [console.groq.com/docs/models](https://console.groq.com/docs/models)
+(default here is `openai/gpt-oss-20b`).
+
+**`NotImplementedError: Cannot copy out of meta tensor; no data!`**
+A version mismatch between `torch`/`transformers`/`accelerate` breaks
+`sentence-transformers`' CPU loading path. `requirements.txt` pins known-good
+versions for this; if you installed without the pins, reinstall with:
+```bash
+pip install sentence-transformers==3.1.1 transformers==4.44.2 accelerate==0.34.2 huggingface-hub==0.24.6 tokenizers==0.19.1 torch==2.4.1 --no-cache-dir
+```
+
+**`GROQ_API_KEY is not set` despite editing `.env`**
+Two common causes: the file got saved as `.env.txt` (check your editor didn't
+add an extension), or `uvicorn --reload` was already running when you edited
+it — environment variables load once at startup, so stop and restart the
+server after any `.env` change.
+
+**`chromadb` dependency conflict during install**
+Use the exact `chromadb` version pinned in `requirements.txt` —
+`langchain-chroma` requires `chromadb>=0.4.0,<0.6.0,!=0.5.4,!=0.5.5`.
 
 ## Testing
 
